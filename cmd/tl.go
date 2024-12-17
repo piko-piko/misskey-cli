@@ -19,7 +19,7 @@ var tlCmd = &cobra.Command{
 	Long:  `Show timelime command`,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := misskey.NewClient(instanceName, cfgFile)
-		if err := client.GetTimeline(limit, mode); err != nil {
+		if err := client.GetTimeline(plainPrint , limit, mode); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 	},

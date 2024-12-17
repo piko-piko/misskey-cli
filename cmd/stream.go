@@ -18,7 +18,7 @@ var streamCmd = &cobra.Command{
 	Long:  `Streaming timeline like UserStream`,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := misskey.NewClient(instanceName, cfgFile)
-		if err := client.GetStream(mode); err != nil {
+		if err := client.GetStream(plainPrint, mode); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 	},

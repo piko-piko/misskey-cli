@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/mattn/go-colorable"
@@ -15,20 +14,8 @@ var (
 	output = colorable.NewColorableStdout()
 )
 
-type noteData struct {
-	offset    string
-	timestamp string
-	name      string
-	username  string
-	host      string
-	text      string
-	attach    string
-	id        string
-	isCat     bool
-}
-
 // タイムライン取得
-func (c *Client) GetTimeline(limit int, mode string) error {
+func (c *Client) GetTimeline(plainPrint bool, limit int, mode string) error {
 	body := struct {
 		I     string `json:"i"`
 		Limit int    `json:"limit"`
@@ -57,18 +44,20 @@ func (c *Client) GetTimeline(limit int, mode string) error {
 		return err
 	}
 
-	fmt.Println("Timeline: " + mode + "  @" + c.InstanceInfo.UserName + " (" + c.InstanceInfo.Host + ")")
-	printLine()
+	fmt.Fprintln(os.Stdout,"Timeline: " + mode + "  @" + c.InstanceInfo.UserName + " (" + c.InstanceInfo.Host + ")")
+	if !plainPrint {
+		printLine()
+	}
 
 	jsonparser.ArrayEach(c.resBuf.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 
 		// とりあえずTextを持ってきてみる
 		_, err = jsonparser.GetString(value, "renoteId")
 
-		var note noteData
+		var note *Note
 
 		if err != nil {
-			note, err = pickNote(value)
+			note, err = NewNote(value)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				return
@@ -77,88 +66,36 @@ func (c *Client) GetTimeline(limit int, mode string) error {
 			_, err = jsonparser.GetString(value, "replyId")
 			if err == nil {
 				replyParentValue, _, _, _ := jsonparser.Get(value, "reply")
-				replyParent, err := pickNote(replyParentValue)
+				replyParent, err := NewNote(replyParentValue)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					return
 				}
-				repStr := fmt.Sprintf("%s \x1b[35m%s(@%s)\x1b[0m\t %s \x1b[32m%s\x1b[0m\x1b[34m(%s)\x1b[0m", replyParent.timestamp, replyParent.name, replyParent.username, replyParent.text, replyParent.attach, replyParent.id)
+				repStr := fmt.Sprint(replyParent.String(!plainPrint))
 				fmt.Fprintln(output, repStr)
-				note.offset = "    "
+				note.Offset = "    "
 			}
 
 		} else { // renoteだったら
 
 			renoteValue, _, _, _ := jsonparser.Get(value, "renote")
 
-			note, err = pickNote(renoteValue)
+			note, err = NewNote(renoteValue)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				return
 			}
-
-			note.name = "[RN]" + note.name
-
+			note.Renote = true
 		}
-
-		str := fmt.Sprintf("%s%s \x1b[31m%s(@%s)\x1b[0m\t %s \x1b[32m%s\x1b[0m\x1b[34m(%s)\x1b[0m", note.offset, note.timestamp, note.name, note.username, note.text, note.attach, note.id)
-
-		fmt.Fprintln(output, str)
+		fmt.Fprintln(os.Stdout, note.String(!plainPrint))
 	})
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(output, err)
 		return err
 	}
 
 	return nil
 }
 
-func pickNote(value []byte) (noteData, error) {
-	var note noteData
-	var err error
-	// 投稿者
-	note.name, _ = jsonparser.GetString(value, "user", "name")
 
-	//投稿者ID
-	note.username, err = jsonparser.GetString(value, "user", "username")
-	if err != nil {
-		return note, err
-	}
-	//ホスト名
-	note.host, err = jsonparser.GetString(value, "user", "host")
-	if err == nil {
-		note.username = note.username + "@" + note.host
-	}
-
-	// 投稿時刻
-	note.timestamp, err = jsonparser.GetString(value, "createdAt")
-	if err != nil {
-		return note, err
-	}
-	t, _ := time.ParseInLocation("2006-01-02T15:04:05Z", note.timestamp, time.UTC)
-	note.timestamp = t.In(time.Local).Format("2006/01/02 15:04:05")
-
-	// 本文
-	note.text, _ = jsonparser.GetString(value, "text")
-
-	//投稿ID(元投稿)
-	note.id, err = jsonparser.GetString(value, "id")
-	if err != nil {
-		return note, err
-	}
-
-	//ねこかどうか
-	isCat, err := jsonparser.GetBoolean(value, "user", "isCat")
-	if isCat {
-		note.name = note.name + "(Cat)"
-	}
-
-	// ファイルが有れば
-	filesId, _, _, _ := jsonparser.Get(value, "files")
-	if len(filesId) != 2 {
-		note.attach = "   (添付有り)"
-	}
-
-	return note, nil
-}

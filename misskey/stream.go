@@ -16,10 +16,12 @@ import (
 
 // gettimeline.goに依存した実装
 
-func (c *Client) GetStream(mode string) error {
+func (c *Client) GetStream(plainPrint bool, mode string) error {
 
 	fmt.Println("Stream: " + mode + "  @" + c.InstanceInfo.UserName + " (" + c.InstanceInfo.Host + ")")
-	printLine()
+	if !plainPrint {
+		printLine()
+	}
 
 	parsedUrl, err := url.Parse(c.InstanceInfo.Host)
 	if err != nil {
@@ -108,10 +110,10 @@ func printNote(message string) {
 	// とりあえずTextを持ってきてみる
 	_, err = jsonparser.GetString(messageBody, "renoteId")
 
-	var note noteData
+	var note *Note
 
 	if err != nil {
-		note, err = pickNote(messageBody)
+		note, err = NewNote(messageBody)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
@@ -120,33 +122,32 @@ func printNote(message string) {
 		_, err = jsonparser.GetString(messageBody, "replyId")
 		if err == nil {
 			replyParentValue, _, _, _ := jsonparser.Get(messageBody, "reply")
-			replyParent, err := pickNote(replyParentValue)
+			replyParent, err := NewNote(replyParentValue)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				return
 			}
-			repStr := fmt.Sprintf("%s \x1b[35m%s(@%s)\x1b[0m\t %s \x1b[32m%s\x1b[0m\x1b[34m(%s)\x1b[0m", replyParent.timestamp, replyParent.name, replyParent.username, replyParent.text, replyParent.attach, replyParent.id)
-			fmt.Fprintln(output, repStr)
-			note.offset = "    "
+			fmt.Fprintln(os.Stdout, replyParent)
+			note.Offset = "    "
 		}
 
 	} else { // renoteだったら
 
 		renoteValue, _, _, _ := jsonparser.Get(messageBody, "renote")
 
-		note, err = pickNote(renoteValue)
+		note, err = NewNote(renoteValue)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
 		}
 
-		note.name = "[RN]" + note.name
+		note.User.Name = "[RN]" + note.User.Name
 
 	}
 
-	str := fmt.Sprintf("%s%s \x1b[31m%s(@%s)\x1b[0m\t %s \x1b[32m%s\x1b[0m\x1b[34m(%s)\x1b[0m", note.offset, note.timestamp, note.name, note.username, note.text, note.attach, note.id)
+	str := fmt.Sprint(note)
 
-	fmt.Fprintln(output, str)
+	fmt.Fprintln(os.Stdout, str)
 
 	return
 }

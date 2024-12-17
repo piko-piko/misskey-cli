@@ -4,7 +4,6 @@ Copyright © 2022 mikuta0407
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -14,6 +13,7 @@ import (
 
 var cfgFile string
 var instanceName string
+var plainPrint bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -23,7 +23,6 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
-	fmt.Printf("misskey-cli  ")
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
@@ -39,6 +38,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", configFile(), "config file")
 	rootCmd.PersistentFlags().StringVarP(&instanceName, "instance", "i", "", "connect instance name(not host name)")
+	rootCmd.PersistentFlags().BoolVarP(&plainPrint,"plain", "p", false, "Toggle plain print(for use with pipes)")
 
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
